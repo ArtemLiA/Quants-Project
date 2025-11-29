@@ -1,0 +1,70 @@
+from typing import Callable, Optional
+
+import numpy as np
+import pandas as pd
+
+
+class CIRModel:
+    def __init__(self, theta_func: Callable[[float], float], alpha: float, sigma: float):
+        """
+        CIR-модель для моделирования мгновенной процентной ставки
+
+        Параметры
+        ----------
+        theta_func: Callable[[float], float] -> функция времени, возвращающая уровень среднего
+        alpha: float -> коэффициент стремления к среднему
+        sigma: float -> волатильность
+        """
+        self.theta_func = theta_func
+        self.alpha = alpha
+        self.sigma = sigma
+
+    def __call__(
+        self,
+        start_date: str,
+        end_date: str,
+        freq: str,
+        n_trajectories: int,
+        r0: float,
+        dt: float = 0.05,
+        dW: Optional[np.ndarray] = None,
+        return_df: bool = True,
+    ):
+        """
+        Произвести симуляции траекторий на основе CIR-модели при помощи
+        разностной схемы Эйлера-Мураяны с зависящим от времени theta
+        """
+        # Создаем временные метки
+        timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
+        n_timestamps = timestamps.size
+
+        # Преобразуем даты в числовые значения (годы от начальной даты)
+        start_timestamp = pd.Timestamp(start_date)
+        time_years = np.array([(ts - start_timestamp).days / 365.25 for ts in timestamps])
+
+        # Вычисляем theta для каждого момента времени
+        theta_values = np.array([self.theta_func(t) for t in time_years])
+
+        r = np.full(shape=(n_timestamps, n_trajectories), fill_value=r0)
+
+        for i in range(1, n_timestamps):
+            if dW is None:
+                dw = np.random.normal(0, np.sqrt(dt), size=n_trajectories)
+            else:
+                dw = dW[i]
+
+            # Используем зависящий от времени theta
+            r[i] = (
+                r[i - 1]
+                + self.alpha * (theta_values[i] - r[i - 1]) * dt
+                + self.sigma * np.sqrt(np.maximum(r[i - 1], 1e-8)) * dw
+            )
+            r[i] = np.maximum(r[i], 0.0)
+
+        if return_df:
+            df = pd.DataFrame(data=r, index=timestamps)
+            df = df.rename(columns=lambda x: f"Trajectory_{x + 1}")
+            df.columns.name = "Trajectory"
+            return df
+
+        return timestamps, r

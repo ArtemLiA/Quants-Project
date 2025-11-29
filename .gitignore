@@ -1,0 +1,5 @@
+.env
+.vscode/
+.venv/
+repo_overview.py
+__pycache__/
