@@ -12,16 +12,15 @@ class FXLogModel:
       self,
       start_date: str,
       end_date: str,
-      freq: str,
       n_trajectories: int,
       rf: np.ndarray, 
       rd: np.ndarray, 
       fx0: float,
       dt: float = 0.05,
-      dW: Optional[np.ndarray] = None,
+      dW: Optional[np.ndarray] = None,  # shape of [n_timestamps, n_trajectories]
       return_df: bool = True
   ):
-    timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
+    timestamps = pd.date_range(start=start_date, end=end_date, freq="B")
     n_timestamps = timestamps.size
 
     sigma = self.sigma
