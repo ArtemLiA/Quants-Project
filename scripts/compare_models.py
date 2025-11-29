@@ -6,7 +6,7 @@ from scripts.simulate_model import create_model, simulate_model
 from src.theta.theta_factory import ThetaFactory
 
 
-def compare_models(models, sofr_df, initial_rate):
+def compare_models(models, initial_rate, start_date, end_date):
     """Сравнение моделей"""
     print("\nСРАВНЕНИЕ МОДЕЛЕЙ")
 
@@ -28,7 +28,7 @@ def compare_models(models, sofr_df, initial_rate):
 
     # Построение графика сравнения
     print("\nГрафик сравнения моделей...")
-    dates = pd.date_range(start=sofr_df["Date"].max(), periods=253, freq="B")
+    dates = pd.date_range(start=start_date, end=end_date, freq="B")
     time_points = np.linspace(0, 1, len(dates))
 
     plt.figure(figsize=(12, 8))
@@ -38,7 +38,7 @@ def compare_models(models, sofr_df, initial_rate):
     plt.subplot(2, 1, 1)
     for model_type in models:
         model = create_model(models[model_type], model_type)
-        _, trajectories = simulate_model(model, initial_rate, sofr_df)
+        _, trajectories = simulate_model(model, initial_rate, start_date, end_date)
         mean_traj = trajectories.mean(axis=1)
 
         color = colors[model_type]

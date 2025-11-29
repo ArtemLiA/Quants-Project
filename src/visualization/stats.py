@@ -1,33 +1,79 @@
 import numpy as np
 
 
-def print_statistics(rates_data):
-    """Вывод статистики данных"""
-    rates_data = rates_data * 100
-    print("Статистика данных:")
+def print_statistics(data, data_type="rate", log_returns=None):
+    """
+    Универсальная функция вывода статистики данных
+
+    Parameters
+    ----------
+    data : pd.Series или np.ndarray
+        Массив данных (ставки или курсы)
+    data_type : str
+        Тип данных: "rate" для ставок, "fx" для обменного курса
+    log_returns : pd.Series или np.ndarray, optional
+        Лог-доходности (только для data_type="fx")
+    """
+
+    if data_type == "rate":
+        # Для ставок: преобразуем в проценты
+        data_display = data * 100
+        unit = "%"
+        asset_name = "ставка"
+        changes_name = "ставок"
+    else:
+        # Для курса: оставляем как есть
+        data_display = data
+        unit = "RUB/USD"
+        asset_name = "курс"
+        changes_name = "курса"
+
+    print(f"СТАТИСТИКА ДАННЫХ ({asset_name.upper()}):")
+    print("=" * 50)
+
+    # Основная статистика
     stats = [
-        f"• Объем данных: {len(rates_data)} наблюдений",
-        f"• Минимальная ставка: {rates_data.min():.4f}%",
-        f"• Максимальная ставка: {rates_data.max():.4f}%",
-        f"• Средняя ставка: {rates_data.mean():.4f}%",
-        f"• Медиана: {np.median(rates_data):.4f}%",
-        f"• Стандартное отклонение: {rates_data.std():.4f}%",
-        f"• Коэффициент вариации: {(rates_data.std() / rates_data.mean()):.4f}",
+        f"• Объем данных: {len(data)} наблюдений",
+        f"• Минимальный {asset_name}: {data_display.min():.4f} {unit}",
+        f"• Максимальный {asset_name}: {data_display.max():.4f} {unit}",
+        f"• Средний {asset_name}: {data_display.mean():.4f} {unit}",
+        f"• Медиана: {np.median(data_display):.4f} {unit}",
+        f"• Стандартное отклонение: {data_display.std():.4f} {unit}",
     ]
+
+    # Добавляем коэффициент вариации только если среднее не нулевое
+    if data_display.mean() != 0:
+        cv = data_display.std() / data_display.mean()
+        stats.append(f"• Коэффициент вариации: {cv:.4f}")
+
     print("\n".join(stats))
 
-    q25, q75 = np.percentile(rates_data, [25, 75])
-    daily_changes = np.diff(rates_data)
+    # Квартили
+    q25, q75 = np.percentile(data_display, [25, 75])
+    print(f"\n• 25-й перцентиль: {q25:.4f} {unit}")
+    print(f"• 75-й перцентиль: {q75:.4f} {unit}")
+    print(f"• IQR: {q75 - q25:.4f} {unit}")
 
-    print(f"\n• 25-й перцентиль: {q25:.4f}%")
-    print(f"• 75-й перцентиль: {q75:.4f}%")
-    print(f"• IQR: {q75 - q25:.4f}%")
+    # Анализ изменений
+    if data_type == "rate":
+        # Для ставок: абсолютные изменения
+        daily_changes = np.diff(data_display)
+        changes_unit = "%"
+    else:
+        # Для курса: используем переданные лог-доходности
+        if log_returns is not None:
+            daily_changes = log_returns
+            changes_unit = ""
+        else:
+            # Если лог-доходности не переданы, рассчитываем абсолютные изменения
+            daily_changes = np.diff(data_display)
+            changes_unit = unit
 
-    print("\nАнализ изменений ставок:")
-    print(f"• Среднее дневное изменение: {np.mean(daily_changes):.4f}%")
-    print(f"• Волатильность изменений: {np.std(daily_changes):.4f}%")
-    print(f"• Макс. рост за день: {daily_changes.max():.4f}%")
-    print(f"• Макс. падение за день: {daily_changes.min():.4f}%")
+    print(f"\nАнализ изменений {changes_name}:")
+    print(f"• Среднее дневное изменение: {np.mean(daily_changes):.4f}{changes_unit}")
+    print(f"• Волатильность изменений: {np.std(daily_changes):.4f}{changes_unit}")
+    print(f"• Макс. рост за день: {daily_changes.max():.4f}{changes_unit}")
+    print(f"• Макс. падение за день: {daily_changes.min():.4f}{changes_unit}")
 
 
 def print_best_params(models, best_type):

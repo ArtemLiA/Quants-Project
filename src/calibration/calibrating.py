@@ -93,7 +93,7 @@ def calibrate_time_dependent_cir(
 
     # Конфигурации для разных режимов
     if mode == "rub":
-        # Рублевый режим: [kappa, theta, sigma] для constant, [kappa, sigma, a, b...] для time-dependent
+        # Рублевый режим: [kappa, sigma, theta] для constant, [kappa, sigma, a, b...] для time-dependent
         config = {
             "constant": (
                 [1.0, std_rate * 0.5, mean_rate],
@@ -134,3 +134,54 @@ def calibrate_time_dependent_cir(
 
     result = minimize(likelihood_wrapper, initial_guess, bounds=bounds, method="L-BFGS-B")
     return result
+
+
+def check_feller_condition(alpha, sigma, theta, model_type="constant"):
+    """
+    Проверка условия Феллера для CIR модели
+
+    Parameters
+    ----------
+    alpha : float
+        Скорость возврата к среднему
+    sigma : float
+        Волатильность
+    theta : float
+        Параметр theta (может быть постоянным, начальным или средним значением)
+    model_type : str
+        Тип модели: "constant", "linear", "periodic"
+
+    Returns
+    -------
+    tuple : (bool, str, str)
+        (условие_выполнено, подробное_сообщение, краткое_сообщение)
+    """
+
+    # Вычисляем обе части неравенства
+    left_side = 2 * alpha * theta
+    right_side = sigma**2
+
+    feller_condition = left_side > right_side
+
+    # Формируем сообщения в зависимости от типа модели
+    if model_type == "constant":
+        condition_desc = "2αθ > σ²"
+        theta_desc = "θ"
+    elif model_type == "linear":
+        condition_desc = "2αθ(t₀) > σ²"
+        theta_desc = "θ(t₀)"
+    else:  # periodic
+        condition_desc = "2αθ_сред > σ²"
+        theta_desc = "θ_сред"
+
+    detailed_message = (
+        f"Условие Феллера ({condition_desc}):\n"
+        f"  2 * α * {theta_desc} = 2 * {alpha:.6f} * {theta:.6f} = {left_side:.6f}\n"
+        f"  σ² = {sigma:.6f}² = {right_side:.6f}\n"
+        f"  {left_side:.6f} > {right_side:.6f} = {feller_condition}"
+    )
+
+    short_message = f"Условие Феллера ({condition_desc}): {'ВЫПОЛНЕНО' if feller_condition else 'НЕ ВЫПОЛНЕНО'}"
+    print(short_message)
+
+    return feller_condition, detailed_message, short_message

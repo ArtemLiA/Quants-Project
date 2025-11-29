@@ -26,7 +26,7 @@ class CIRModel:
         freq: str,
         n_trajectories: int,
         r0: float,
-        dt: float = 0.05,
+        dt: float = 1 / 252,
         dW: Optional[np.ndarray] = None,
         return_df: bool = True,
     ):
@@ -34,18 +34,22 @@ class CIRModel:
         Произвести симуляции траекторий на основе CIR-модели при помощи
         разностной схемы Эйлера-Мураяны с зависящим от времени theta
         """
+        np.random.seed(42)  # Для воспроизводимости результатов
+
         # Создаем временные метки
         timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
         n_timestamps = timestamps.size
 
         # Преобразуем даты в числовые значения (годы от начальной даты)
         start_timestamp = pd.Timestamp(start_date)
-        time_years = np.array([(ts - start_timestamp).days / 365.25 for ts in timestamps])
+        time_years = np.array([(ts - start_timestamp).days * dt for ts in timestamps])
 
         # Вычисляем theta для каждого момента времени
         theta_values = np.array([self.theta_func(t) for t in time_years])
 
-        r = np.full(shape=(n_timestamps, n_trajectories), fill_value=r0)
+        # Случайные колебания
+        r = np.zeros(shape=(n_timestamps, n_trajectories))
+        r[0] = r0
 
         for i in range(1, n_timestamps):
             if dW is None:
@@ -54,12 +58,13 @@ class CIRModel:
                 dw = dW[i]
 
             # Используем зависящий от времени theta
+            # Новая ставка = старая + предсказуемое + случайное
             r[i] = (
                 r[i - 1]
-                + self.alpha * (theta_values[i] - r[i - 1]) * dt
-                + self.sigma * np.sqrt(np.maximum(r[i - 1], 1e-8)) * dw
+                + self.alpha * (theta_values[i - 1] - r[i - 1]) * dt
+                + self.sigma * np.sqrt(np.maximum(r[i - 1], 0.001)) * dw
             )
-            r[i] = np.maximum(r[i], 0.0)
+            # r[i] = np.maximum(r[i], 0.0)
 
         if return_df:
             df = pd.DataFrame(data=r, index=timestamps)
