@@ -40,7 +40,7 @@ def create_model(params, model_type):
 
 
 def simulate_model(
-    model, initial_value, start_date, end_date, n_paths=50, freq="B", model_type=None, **kwargs
+    model, initial_value, start_date, end_date, n_paths=50, model_type=None, **kwargs
 ):
     """
     Универсальная симуляция траекторий
@@ -57,8 +57,6 @@ def simulate_model(
         Дата окончания симуляции
     n_paths : int
         Количество траекторий
-    freq : str
-        Частота данных ('B' для бизнес-дней)
     model_type : str, optional
         Тип модели ("rate" для ставок, "fx" для курса)
     **kwargs : dict
@@ -88,7 +86,6 @@ def simulate_model(
         trajectories = model(
             start_date=start_date,
             end_date=end_date,
-            freq=freq,
             n_trajectories=n_paths,
             r0=initial_value,
             return_df=True,
@@ -102,7 +99,7 @@ def simulate_model(
         mu_annual = kwargs.get("mu_annual")
 
         # Создаем временные метки для расчета количества шагов
-        dates = pd.date_range(start=start_date, end=end_date, freq=freq)
+        dates = pd.date_range(start=start_date, end=end_date, freq="B")
         n_dates = len(dates)
 
         if rf_rates is not None and rd_rates is not None:
@@ -125,7 +122,6 @@ def simulate_model(
         trajectories = model(
             start_date=start_date,
             end_date=end_date,
-            freq=freq,
             n_trajectories=n_paths,
             rf=rf_array,
             rd=rd_array,
