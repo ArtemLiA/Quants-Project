@@ -30,6 +30,7 @@
 ```
 QUANTS-PROJECT/
 ├── 📄 README.md                    # Документация
+├── 📄 main.ipynb                   # Демонстрация
 ├── 📄 requirements.txt             # Зависимости
 ├── 📁 scripts/                     
 │   ├── calibrate_models.py         # Калибровка моделей
