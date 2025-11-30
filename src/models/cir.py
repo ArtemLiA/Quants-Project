@@ -1,17 +1,11 @@
-from typing import Callable
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
 
 
 class CIRModel:
-    def __init__(
-          self,
-          theta_func: Callable[[float], float],
-          alpha: float,
-          sigma: float
-    ):
+    def __init__(self, theta_func: Callable[[float], float], alpha: float, sigma: float):
         """
         CIR-модель для моделирования мгновенной процентной ставки
 
@@ -31,6 +25,7 @@ class CIRModel:
         end_date: str,
         n_trajectories: int,
         r0: float,
+        freq: str = "B",
         dt: float = 1 / 252,
         dW: Optional[np.ndarray] = None,
         return_df: bool = True,
@@ -43,7 +38,7 @@ class CIRModel:
         np.random.seed(seed)
 
         # Создаем временные метки
-        timestamps = pd.date_range(start=start_date, end=end_date, freq="B")
+        timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
         n_timestamps = timestamps.size
 
         if dW is not None:
@@ -59,7 +54,6 @@ class CIRModel:
         # Случайные колебания
         r = np.zeros(shape=(n_timestamps, n_trajectories))
         r[0] = r0
-
 
         alpha = self.alpha
         sigma = self.sigma

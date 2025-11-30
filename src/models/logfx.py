@@ -23,10 +23,11 @@ class FXLogModel:
         rf: np.ndarray,
         rd: np.ndarray,
         fx0: float,
+        freq: str = "B",
         dt: float = 1 / 252,
         dW: Optional[np.ndarray] = None,
         return_df: bool = True,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
     ):
         """
         Произвести симуляции траекторий обменного курса на основе
@@ -48,8 +49,11 @@ class FXLogModel:
         np.random.seed(seed)  # Для воспроизводимости результатов
 
         # Создаем временные метки
-        timestamps = pd.date_range(start=start_date, end=end_date, freq="B")
+        timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
         n_timestamps = timestamps.size
+
+        assert len(rd) == n_timestamps
+        assert len(rf) == n_timestamps
 
         if dW is not None:
             assert dW.shape == (n_timestamps, n_trajectories)
