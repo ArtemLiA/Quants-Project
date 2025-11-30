@@ -239,12 +239,12 @@ def check_feller_condition(alpha, sigma, theta, time_points=None):
             conditions.append(condition_met)
             feller_info.append((t, theta_val, left_side, right_side, condition_met))
 
-        feller_condition = all(conditions)
+        feller_condition = sum(conditions)
 
         if feller_condition:
-            print("Условие Феллера: ВЫПОЛНЕНО ДЛЯ ВСЕХ t")
+            print(f"Условие Феллера: НАРУШЕНО В {sum(conditions)} ТОЧКАХ")
         else:
-            print("Условие Феллера: НАРУШЕНО В НЕКОТОРЫХ ТОЧКАХ")
+            print("Условие Феллера: ВЫПОЛНЕНО ДЛЯ ВСЕХ t")
 
     else:
         # Постоянная theta

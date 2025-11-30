@@ -37,11 +37,10 @@ def compare_models(models, initial_rate, start_date, end_date):
             # Для G-кривой выводим информацию о данных
             if "start_date" in params:
                 start_dt = params["start_date"]
-                date_range = f"{start_dt.strftime('%Y-%m-%d')} + {params['times'][-1]:.2f} лет"
-                print(f"G-кривая θ: {date_range}")
-                print(
-                    f"  Диапазон ставок: {params['rates'].min() * 100:.2f}% - {params['rates'].max() * 100:.2f}%"
-                )
+            print(f"G-кривая θ: LogL = {params['logl']:.4f}")
+            print(
+                f"  Диапазон ставок: {params['rates'].min() * 100:.2f}% - {params['rates'].max() * 100:.2f}%"
+            )
 
     # Подготовка данных для графиков
     print("\nПостроение графиков сравнения...")
