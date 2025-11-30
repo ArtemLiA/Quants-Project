@@ -52,12 +52,17 @@ def compare_models(models, initial_rate, start_date, end_date):
     time_points = (dates - start_dt).days / 365.0
 
     plt.figure(figsize=(12, 10))
-    colors = {"constant": "red", "g_curve": "green"}
+    colors = {"constant": "red", "g_curve_spline": "green", "g_curve_piecewise": "blue"}
+    labels = {
+        "constant": "Постоянная θ",
+        "g_curve_spline": "G-кривая θ (сплайн)",
+        "g_curve_piecewise": "G-кривая θ (кусочно-линейная)",
+    }
 
     # Верхний график: средние траектории симуляций
     plt.subplot(2, 1, 1)
     for model_type in models:
-        if model_type == "g_curve":
+        if "g_curve" in model_type:
             # Создание модели CIR с theta на основе G-кривой
             from src.models.cir import CIRModel
 
@@ -74,8 +79,8 @@ def compare_models(models, initial_rate, start_date, end_date):
         _, trajectories = simulate_model(model, initial_rate, start_date, end_date)
         mean_traj = trajectories.mean(axis=1)
 
-        color = colors[model_type]
-        label = "Постоянная θ" if model_type == "constant" else "G-кривая θ"
+        color = colors.get(model_type, "gray")
+        label = labels.get(model_type, model_type)
 
         plt.plot(
             dates,
@@ -100,7 +105,7 @@ def compare_models(models, initial_rate, start_date, end_date):
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    # Нижний график: функции theta(t)
+    # Нижний график: Функции theta(t)
     plt.subplot(2, 1, 2)
 
     # Постоянная theta
@@ -114,19 +119,23 @@ def compare_models(models, initial_rate, start_date, end_date):
             label=f"Постоянная θ = {theta_const:.2f}%",
         )
 
-    # G-кривая theta
-    if "g_curve" in models:
-        # Для G-кривой время отсчитывается от start_date симуляции
-        theta_values = np.array([
-            models["g_curve"]["theta_function"](t) * 100 for t in time_points
-        ])
-        plt.plot(
-            dates,
-            theta_values,
-            color=colors["g_curve"],
-            linewidth=2,
-            label="G-кривая θ(t)",
-        )
+    # G-кривые theta
+    for model_type in models:
+        if "g_curve" in model_type:
+            color = colors.get(model_type, "gray")
+            label = labels.get(model_type, model_type)
+
+            # Для G-кривой время отсчитывается от start_date симуляции
+            theta_values = np.array([
+                models[model_type]["theta_function"](t) * 100 for t in time_points
+            ])
+            plt.plot(
+                dates,
+                theta_values,
+                color=color,
+                linewidth=2,
+                label=label,
+            )
 
     plt.title("Функции theta(t)")
     plt.xlabel("Дата")
@@ -136,5 +145,3 @@ def compare_models(models, initial_rate, start_date, end_date):
 
     plt.tight_layout()
     plt.show()
-
-    return "g_curve" if "g_curve" in models else "constant"

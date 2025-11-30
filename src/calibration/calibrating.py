@@ -125,49 +125,52 @@ def calibrate_theta_from_g_curve(g_curve_data, method="spline"):
     # Время в годах от начальной даты
     start_date = g_curve_data["Date"].min()
 
-    # Вычисляем время в годах для каждой даты
-    times = (g_curve_data["Date"] - start_date).dt.days / 365.0
+    # Вычисляем время в годах для каждой даты и преобразуем в numpy array
+    times = ((g_curve_data["Date"] - start_date).dt.days / 365.0).values
     g_rates = g_curve_data["Rate"].values
 
     if method == "spline":
         # Кубическая сплайн-интерполяция для гладкой функции theta(t)
         theta_spline = CubicSpline(times, g_rates)
 
-        def theta_function(t):
+        def splint_theta_function(t):
             # Защита от отрицательных значений ставки
-            return max(theta_spline(t), 1e-6)
+            return max(theta_spline(t), 1e-8)
 
         return {
-            "theta_function": theta_function,
-            "method": "spline",
+            "theta_function": splint_theta_function,
+            "method": method,
             "times": times,
             "rates": g_rates,
+            "start_date": start_date,
         }
 
     elif method == "piecewise":
         # Кусочно-линейная интерполяция между узлами G-кривой
-        def theta_function(t):
+        def piecewise_theta_function(t):
             # Поиск ближайших узлов интерполяции
             idx = np.searchsorted(times, t)
             if idx == 0:
-                return g_rates[0]  # Экстраполяция влево - первое значение
+                return max(g_rates[0], 1e-8)  # Защита от отрицательных значений
             elif idx == len(times):
-                return g_rates[-1]  # Экстраполяция вправо - последнее значение
+                return max(g_rates[-1], 1e-8)  # Защита от отрицательных значений
             else:
                 # Линейная интерполяция между узлами
                 t1, t2 = times[idx - 1], times[idx]
                 r1, r2 = g_rates[idx - 1], g_rates[idx]
-                return r1 + (r2 - r1) * (t - t1) / (t2 - t1)
+                interpolated_value = r1 + (r2 - r1) * (t - t1) / (t2 - t1)
+                return max(interpolated_value, 1e-8)  # Защита от отрицательных значений
 
         return {
-            "theta_function": theta_function,
-            "method": "piecewise",
+            "theta_function": piecewise_theta_function,
+            "method": method,
             "times": times,
             "rates": g_rates,
+            "start_date": start_date,
         }
 
 
-def check_feller_condition(alpha, sigma, theta):
+def check_feller_condition(alpha, sigma, theta, time_points=None):
     """
     Проверка условия Феллера для CIR модели
 
@@ -180,29 +183,39 @@ def check_feller_condition(alpha, sigma, theta):
         Скорость возврата к среднему
     sigma : float
         Волатильность
-    theta : float
-        Долгосрочное среднее
-
-    Returns
-    -------
-    tuple
-        (условие_выполнено, подробное_сообщение, краткое_сообщение)
+    theta : float or callable
+        Долгосрочное среднее (постоянное или функция theta(t))
+    time_points : array-like, optional
+        Временные точки для проверки (если theta - функция)
     """
-    # Вычисление обеих частей неравенства Феллера
-    left_side = 2 * alpha * theta
-    right_side = sigma**2
 
-    feller_condition = left_side > right_side
+    # Если theta - функция, проверяем на всех временных точках
+    if callable(theta):
+        if time_points is None:
+            # По умолчанию проверяем на горизонте 1 года
+            time_points = np.linspace(0, 1, 50)
 
-    # Форматирование подробного сообщения с вычислениями
-    detailed_message = (
-        f"Условие Феллера (2αθ > σ²):\n"
-        f"  2 * α * θ = 2 * {alpha:.6f} * {theta:.6f} = {left_side:.6f}\n"
-        f"  σ² = {sigma:.6f}² = {right_side:.6f}\n"
-        f"  {left_side:.6f} > {right_side:.6f} = {feller_condition}"
-    )
+        conditions = []
+        for t in time_points:
+            theta_val = theta(t)
+            left_side = 2 * alpha * theta_val
+            right_side = sigma**2
+            conditions.append(left_side > right_side)
 
-    short_message = f"Условие Феллера: {'ВЫПОЛНЕНО' if feller_condition else 'НЕ ВЫПОЛНЕНО'}"
-    print(short_message)
+        feller_condition = all(conditions)
 
-    return feller_condition, detailed_message, short_message
+        if feller_condition:
+            print("Условие Феллера: ВЫПОЛНЕНО ДЛЯ ВСЕХ t")
+        else:
+            print("Условие Феллера: НАРУШЕНО В НЕКОТОРЫХ ТОЧКАХ")
+
+    else:
+        # Постоянная theta
+        left_side = 2 * alpha * theta
+        right_side = sigma**2
+        feller_condition = left_side > right_side
+
+        if feller_condition:
+            print(f"Условие Феллера: ВЫПОЛНЕНО (2αθ = {left_side:.6f} > σ² = {right_side:.6f})")
+        else:
+            print(f"Условие Феллера: НЕ ВЫПОЛНЕНО (2αθ = {left_side:.6f} ≤ σ² = {right_side:.6f})")
