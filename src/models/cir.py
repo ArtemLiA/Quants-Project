@@ -6,7 +6,12 @@ import pandas as pd
 
 
 class CIRModel:
-    def __init__(self, theta_func: Callable[[float], float], alpha: float, sigma: float):
+    def __init__(
+          self,
+          theta_func: Callable[[float], float],
+          alpha: float,
+          sigma: float
+    ):
         """
         CIR-модель для моделирования мгновенной процентной ставки
 
@@ -41,6 +46,9 @@ class CIRModel:
         timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
         n_timestamps = timestamps.size
 
+        if dW is not None:
+            assert dW.shape == (n_timestamps, n_trajectories)
+
         # Преобразуем даты в числовые значения (годы от начальной даты)
         start_timestamp = pd.Timestamp(start_date)
         time_years = np.array([(ts - start_timestamp).days * dt for ts in timestamps])
@@ -52,18 +60,20 @@ class CIRModel:
         r = np.zeros(shape=(n_timestamps, n_trajectories))
         r[0] = r0
 
+
+        alpha = self.alpha
+        sigma = self.sigma
+
         for i in range(1, n_timestamps):
             if dW is None:
                 dw = np.random.normal(0, np.sqrt(dt), size=n_trajectories)
             else:
                 dw = dW[i]
 
-            # Используем зависящий от времени theta
-            # Новая ставка = старая + предсказуемое + случайное
             r[i] = (
                 r[i - 1]
-                + self.alpha * (theta_values[i - 1] - r[i - 1]) * dt
-                + self.sigma * np.sqrt(np.maximum(r[i - 1], 0.001)) * dw
+                + alpha * (theta_values[i - 1] - r[i - 1]) * dt
+                + sigma * np.sqrt(r[i - 1]) * dw
             )
             r[i] = np.maximum(r[i], 0.0)
 

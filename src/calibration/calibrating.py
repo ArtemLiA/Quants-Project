@@ -42,7 +42,7 @@ def cir_log_likelihood(params, rates, dt=1 / 252):
         actual_change = r_curr - r_prev
 
         # Дисперсия изменения: Var[dr] = σ²r dt
-        variance = sigma**2 * max(r_prev, 1e-8) * dt
+        variance = (sigma ** 2) * max(r_prev, 1e-8) * dt
 
         # Логарифм плотности нормального распределения для перехода
         if variance > 0:
@@ -69,9 +69,8 @@ def calibrate_cir(rates, dt=1 / 252, mode="sofr"):
     Returns
     -------
     scipy.optimize.OptimizeResult
-        Результат оптимизации с оптимальными параметрами
+        Результат оптимизации с оптимальными параметрами -> (alpha, sigma, theta)
     """
-    # Базовая статистика для начального приближения
     mean_rate = np.mean(rates)
     std_rate = np.std(rates)
 

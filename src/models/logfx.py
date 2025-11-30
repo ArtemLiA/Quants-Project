@@ -27,6 +27,7 @@ class FXLogModel:
         dt: float = 1 / 252,
         dW: Optional[np.ndarray] = None,
         return_df: bool = True,
+        seed: Optional[int] = None
     ):
         """
         Произвести симуляции траекторий обменного курса на основе
@@ -45,18 +46,17 @@ class FXLogModel:
         dW: Optional[np.ndarray] -> внешние случайные величины
         return_df: bool -> возвращать DataFrame или массивы
         """
-        np.random.seed(42)  # Для воспроизводимости результатов
+        np.random.seed(seed)  # Для воспроизводимости результатов
 
         # Создаем временные метки
         timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
         n_timestamps = timestamps.size
 
-        # Проверка согласованности размеров
-        if len(rf) != n_timestamps or len(rd) != n_timestamps:
-            raise ValueError(
-                f"Размеры массивов ставок должны соответствовать количеству временных меток. "
-                f"rf: {len(rf)}, rd: {len(rd)}, n_timestamps: {n_timestamps}"
-            )
+        assert rd.shape == (n_timestamps, n_trajectories)
+        assert rf.shape == (n_timestamps, n_trajectories)
+
+        if dW is not None:
+            assert dW.shape == (n_timestamps, n_trajectories)
 
         sigma = self.sigma
         log_fx = np.zeros(shape=(n_timestamps, n_trajectories))
@@ -65,27 +65,11 @@ class FXLogModel:
         for i in range(1, n_timestamps):
             if dW is None:
                 # Генерируем случайный шум
-                eps = np.random.randn(n_trajectories)
-                dw = eps * np.sqrt(dt)
+                dw = np.random.normal(loc=0.0, scale=np.sqrt(dt), size=n_trajectories)
             else:
-                if dW.shape[0] != n_timestamps or dW.shape[1] != n_trajectories:
-                    raise ValueError(
-                        f"Неверная размерность dW: ожидается ({n_timestamps}, {n_trajectories}), "
-                        f"получено {dW.shape}"
-                    )
                 dw = dW[i]
 
-            # Разница процентных ставок как дрейф
-            mu = rf[i] - rd[i]
-
-            # Детерминированная часть: средний тренд с поправкой Ито
-            drift = (mu - 0.5 * sigma**2) * dt
-
-            # Стохастическая часть: случайное отклонение
-            diffusion = sigma * dw
-
-            # Обновляем лог-курс: d(log FX) = (mu - 0.5*sigma^2)*dt + sigma*dW
-            log_fx[i] = log_fx[i - 1] + drift + diffusion
+            log_fx[i] = log_fx[i - 1] + (rf[i] - rd[i]) * dt + sigma * dw
 
         # Преобразуем обратно в обменный курс
         fx_trajectories = np.exp(log_fx)
