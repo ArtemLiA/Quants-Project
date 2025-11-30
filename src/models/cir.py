@@ -64,7 +64,7 @@ class CIRModel:
                 + self.alpha * (theta_values[i - 1] - r[i - 1]) * dt
                 + self.sigma * np.sqrt(np.maximum(r[i - 1], 0.001)) * dw
             )
-            # r[i] = np.maximum(r[i], 0.0)
+            r[i] = np.maximum(r[i], 0.0)
 
         if return_df:
             df = pd.DataFrame(data=r, index=timestamps)

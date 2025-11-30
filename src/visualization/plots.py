@@ -37,7 +37,7 @@ def plot_simulation(
     trajectories : pd.DataFrame или np.ndarray
         Матрица траекторий (время x траектории)
     model_type : str, optional
-        Тип модели ("constant", "linear", "periodic", "fx")
+        Тип модели ("constant", "g_curve", "fx")
     params : dict, optional
         Параметры модели
     title : str, optional
@@ -50,8 +50,7 @@ def plot_simulation(
     # Цвета для разных моделей
     colors = {
         "constant": "red",
-        "linear": "orange",
-        "periodic": "purple",
+        "g_curve": "green",
         "fx": "blue",
         None: "blue",  # Цвет по умолчанию
     }
@@ -83,12 +82,17 @@ def plot_simulation(
                 linewidth=2,
                 label=f"θ={theta_val:.4f}%",
             )
-        elif model_type in ["linear", "periodic"] and "a" in params:
-            theta_val = params["a"] * 100
-            label = (
-                f"θ(t₀)={theta_val:.4f}%" if model_type == "linear" else f"θ(t₀)={theta_val:.4f}%"
+        elif model_type == "g_curve" and "theta_function" in params:
+            # Для G-кривой показываем начальное значение theta
+            start_time = 0
+            theta_val = params["theta_function"](start_time) * 100
+            plt.axhline(
+                y=theta_val,
+                color=color,
+                linestyle="--",
+                linewidth=2,
+                label=f"θ(t₀)={theta_val:.4f}%",
             )
-            plt.axhline(y=theta_val, color=color, linestyle="--", linewidth=2, label=label)
         elif model_type == "fx" and "initial_rate" in params:
             initial_rate = params["initial_rate"]
             plt.axhline(
@@ -105,8 +109,7 @@ def plot_simulation(
     elif model_type:
         model_names = {
             "constant": "постоянная theta",
-            "linear": "линейная theta",
-            "periodic": "периодическая theta",
+            "g_curve": "G-кривая theta",
             "fx": "обменный курс",
         }
         plt.title(f"Симуляция ({model_names.get(model_type, model_type)})")
@@ -136,8 +139,10 @@ def plot_simulation(
             plt.axhline(
                 y=theta_val, color=color, linestyle="--", linewidth=2, label=f"θ={theta_val:.4f}%"
             )
-        elif model_type in ["linear", "periodic"] and "a" in params:
-            theta_val = params["a"] * 100
+        elif model_type == "g_curve" and "theta_function" in params:
+            # Для G-кривой показываем начальное значение theta
+            start_time = 0
+            theta_val = params["theta_function"](start_time) * 100
             plt.axhline(
                 y=theta_val,
                 color=color,
@@ -237,6 +242,95 @@ def plot_fx_analysis(fx_hist, log_returns):
     axes[1, 1].set_xlabel("Лог-доходность")
     axes[1, 1].set_ylabel("Частота")
     axes[1, 1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_g_curve_comparison(models, initial_rate, start_date, end_date):
+    """
+    Специализированная функция для сравнения моделей с постоянной theta и G-кривой
+
+    Parameters
+    ----------
+    models : dict
+        Словарь с параметрами моделей
+    initial_rate : float
+        Начальное значение ставки
+    start_date : str
+        Дата начала симуляции
+    end_date : str
+        Дата окончания симуляции
+    """
+    from scripts.simulate_model import create_model, simulate_model
+
+    dates = pd.date_range(start=start_date, end=end_date, freq="B")
+    start_dt = pd.Timestamp(start_date)
+    time_points = (dates - start_dt).days / 365.0
+
+    plt.figure(figsize=(14, 10))
+
+    # Верхний график: траектории симуляций
+    plt.subplot(2, 1, 1)
+
+    for model_type in ["constant", "g_curve"]:
+        if model_type in models:
+            if model_type == "g_curve":
+                from src.models.cir import CIRModel
+
+                model = CIRModel(
+                    theta_func=models[model_type]["theta_function"],
+                    alpha=models[model_type]["alpha"],
+                    sigma=models[model_type]["sigma"],
+                )
+            else:
+                model = create_model(models[model_type], model_type)
+
+            _, trajectories = simulate_model(model, initial_rate, start_date, end_date)
+            mean_traj = trajectories.mean(axis=1)
+
+            color = "red" if model_type == "constant" else "green"
+            label = "Постоянная θ" if model_type == "constant" else "G-кривая θ"
+
+            plt.plot(dates, mean_traj * 100, color=color, linewidth=2, label=label)
+
+            # Доверительный интервал
+            std_traj = trajectories.std(axis=1)
+            plt.fill_between(
+                dates,
+                (mean_traj - std_traj) * 100,
+                (mean_traj + std_traj) * 100,
+                alpha=0.2,
+                color=color,
+            )
+
+    plt.title("Сравнение средних траекторий моделей")
+    plt.ylabel("Ставка (%)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # Нижний график: функции theta(t)
+    plt.subplot(2, 1, 2)
+
+    # Постоянная theta
+    if "constant" in models:
+        theta_const = models["constant"]["theta"] * 100
+        plt.axhline(
+            y=theta_const, color="red", linewidth=2, label=f"Постоянная θ = {theta_const:.2f}%"
+        )
+
+    # G-кривая theta
+    if "g_curve" in models:
+        theta_values = np.array([
+            models["g_curve"]["theta_function"](t) * 100 for t in time_points
+        ])
+        plt.plot(dates, theta_values, color="green", linewidth=2, label="G-кривая θ(t)")
+
+    plt.title("Функции theta(t)")
+    plt.xlabel("Дата")
+    plt.ylabel("Theta (%)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.show()

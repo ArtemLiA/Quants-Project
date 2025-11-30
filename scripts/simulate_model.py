@@ -15,69 +15,20 @@ def create_model(params, model_type):
     params : dict
         Параметры модели
     model_type : str
-        Тип модели: "constant", "linear", "periodic", "fx"
+        Тип модели: "constant", "g_curve", "fx"
 
     Returns
     -------
     model : CIRModel или FXLogModel
         Созданная модель
     """
-    if model_type in ["constant", "linear", "periodic"]:
+    if model_type in ["constant", "g_curve"]:
         # Создание CIR модели для ставок
         if model_type == "constant":
-            theta_params = {"type": "constant", "value": params["theta"]}
-        elif model_type == "linear":
-            theta_params = {"type": "linear", "a": params["a"], "b": params["b"]}
-        else:  # periodic
-            theta_params = {
-                "type": "periodic",
-                "a": params["a"],
-                "b": params["b"],
-                "freq": params["freq"],
-            }
+            theta_func = ThetaFactory.from_constant(params["theta"]).get_theta_func()
+        else:  # g_curve
+            theta_func = params["theta_function"]
 
-        theta_func = ThetaFactory(theta_params).get_theta_func()
-        return CIRModel(theta_func=theta_func, alpha=params["alpha"], sigma=params["sigma"])
-
-    elif model_type == "fx":
-        # Создание FX модели
-        return FXLogModel(sigma=params["sigma_annual"])
-
-    else:
-        raise ValueError(f"Неизвестный тип модели: {model_type}")
-
-
-def create_model(params, model_type):
-    """
-    Универсальное создание модели
-
-    Parameters
-    ----------
-    params : dict
-        Параметры модели
-    model_type : str
-        Тип модели: "constant", "linear", "periodic", "fx"
-
-    Returns
-    -------
-    model : CIRModel или FXLogModel
-        Созданная модель
-    """
-    if model_type in ["constant", "linear", "periodic"]:
-        # Создание CIR модели для ставок
-        if model_type == "constant":
-            theta_params = {"type": "constant", "value": params["theta"]}
-        elif model_type == "linear":
-            theta_params = {"type": "linear", "a": params["a"], "b": params["b"]}
-        else:  # periodic
-            theta_params = {
-                "type": "periodic",
-                "a": params["a"],
-                "b": params["b"],
-                "freq": params["freq"],
-            }
-
-        theta_func = ThetaFactory(theta_params).get_theta_func()
         return CIRModel(theta_func=theta_func, alpha=params["alpha"], sigma=params["sigma"])
 
     elif model_type == "fx":

@@ -1,85 +1,44 @@
 from typing import Callable, Union
 
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 
 class ThetaFactory:
     """
-    Фабрика для создания функций theta(t) с различными параметризациями.
+    Фабрика для создания функций theta(t) с различными параметризациями
 
-    Класс предоставляет единый интерфейс для создания функций долгосрочного среднего
-    в CIR-модели, которые могут зависеть от времени.
-
-    Параметры
-    ----------
-    params_source : dict | list
-        Источник параметров для функции theta. Может быть словарем с ключами:
-        - 'type': тип функции ('constant', 'linear', 'periodic')
-        - 'value': значение для постоянной функции
-        - 'a': коэффициент сдвига для линейной и периодической функций
-        - 'b': коэффициент наклона/амплитуды
-        - 'freq': частота для периодической функции
-        Или список параметров в порядке: [alpha, sigma, theta_params...]
-    theta_kwargs : dict, optional
-        Дополнительные параметры для функции theta, например:
-        - 'phase': фаза для периодической функции
+    Поддерживает постоянную theta и theta на основе G-кривой
     """
 
     def __init__(self, params_source: Union[dict, list], theta_kwargs: dict = None):
+        """
+        Parameters
+        ----------
+        params_source : dict | list
+            Источник параметров для функции theta
+        theta_kwargs : dict, optional
+            Дополнительные параметры для функции theta
+        """
         self.params_source = params_source
         self.theta_kwargs = theta_kwargs or {}
 
-        # Определяем тип функции theta
+        # Определение типа функции theta из параметров
         if isinstance(params_source, dict):
             self.func_type = params_source.get("type", "constant")
         else:
-            # Если передан список параметров, предполагаем постоянную theta
-            self.func_type = "constant"
-
-    def _extract_base_params(self) -> tuple:
-        """
-        Извлекает базовые параметры a, b, freq из источника параметров.
-
-        Возвращает
-        -------
-        tuple
-            Кортеж параметров (a, b, freq) в зависимости от типа источника
-        """
-        if isinstance(self.params_source, dict):
-            # Для словаря извлекаем параметры по ключам
-            a = self.params_source.get("a", self.params_source.get("value", 0.0))
-            b = self.params_source.get("b", 0.0)
-            freq = self.params_source.get("freq", 1.0)
-        else:
-            # Для списка извлекаем параметры по позициям
-            # Предполагаем формат: [alpha, sigma, theta_value] или [alpha, sigma, a, b, ...]
-            if len(self.params_source) > 2:
-                a = self.params_source[2]  # theta_value или параметр a
-            else:
-                a = 0.0
-
-            if len(self.params_source) > 3:
-                b = self.params_source[3]  # параметр b для линейной/периодической
-            else:
-                b = 0.0
-
-            if len(self.params_source) > 4:
-                freq = self.params_source[4]  # частота для периодической
-            else:
-                freq = 1.0
-
-        return a, b, freq
+            self.func_type = "constant"  # По умолчанию для списка параметров
 
     def constant_theta(self, t: float) -> float:
         """
-        Постоянная функция theta(t) = value.
+        Постоянная функция theta(t) = value
 
-        Параметры
+        Parameters
         ----------
         t : float
             Время (игнорируется для постоянной функции)
 
-        Возвращает
+        Returns
         -------
         float
             Постоянное значение theta
@@ -87,66 +46,65 @@ class ThetaFactory:
         if isinstance(self.params_source, dict):
             return self.params_source.get("value", 0.0)
         else:
-            # Для списка параметров theta_value находится на позиции 2
+            # Для списка параметров theta находится на позиции 2
             return self.params_source[2] if len(self.params_source) > 2 else 0.0
 
-    def linear_theta(self, t: float) -> float:
+    def g_curve_theta(self, t: float) -> float:
         """
-        Линейная функция theta(t) = a + b * t.
+        Функция theta(t) на основе G-кривой
 
-        Параметры
+        Parameters
         ----------
         t : float
             Время в годах
 
-        Возвращает
+        Returns
         -------
         float
-            Линейно зависящее от времени значение theta
+            Значение theta, интерполированное по G-кривой
         """
-        a, b, _ = self._extract_base_params()
-        return a + b * t
-
-    def periodic_theta(self, t: float) -> float:
-        """
-        Периодическая функция theta(t) = a + b * sin(2π * freq * t + phase).
-
-        Параметры
-        ----------
-        t : float
-            Время в годах
-
-        Возвращает
-        -------
-        float
-            Периодически зависящее от времени значение theta
-        """
-        a, b, freq = self._extract_base_params()
-        phase = self.theta_kwargs.get("phase", 0.0)  # Фаза из дополнительных параметров
-        return a + b * np.sin(2 * np.pi * freq * t + phase)
+        if "spline_function" in self.theta_kwargs:
+            # Использование сплайн-интерполяции
+            spline_func = self.theta_kwargs["spline_function"]
+            return max(spline_func(t), 1e-6)  # Защита от отрицательных значений
+        elif "times" in self.theta_kwargs and "rates" in self.theta_kwargs:
+            # Кусочно-линейная интерполяция
+            times = self.theta_kwargs["times"]
+            rates = self.theta_kwargs["rates"]
+            idx = np.searchsorted(times, t)
+            if idx == 0:
+                return rates[0]
+            elif idx == len(times):
+                return rates[-1]
+            else:
+                # Линейная интерполяция между узлами
+                t1, t2 = times[idx - 1], times[idx]
+                r1, r2 = rates[idx - 1], rates[idx]
+                return r1 + (r2 - r1) * (t - t1) / (t2 - t1)
+        else:
+            # Fallback на постоянное значение
+            return self.params_source.get("value", 0.0)
 
     def get_theta_func(self) -> Callable[[float], float]:
         """
-        Возвращает функцию theta(t) соответствующего типа.
+        Возвращает функцию theta(t) соответствующего типа
 
-        Возвращает
+        Returns
         -------
         Callable[[float], float]
             Функция, принимающая время t и возвращающая значение theta
 
-        Исключения
-        ----------
+        Raises
+        ------
         ValueError
             Если указан неизвестный тип функции theta
         """
-        # Словарь соответствия типов функций методам класса
+        # Сопоставление типов функций с методами
         func_mapping = {
             "constant": self.constant_theta,
-            "linear": self.linear_theta,
-            "periodic": self.periodic_theta,
+            "g_curve": self.g_curve_theta,
         }
 
-        # Получаем функцию по типу
         theta_func = func_mapping.get(self.func_type)
 
         if theta_func is None:
@@ -159,17 +117,76 @@ class ThetaFactory:
 
     def get_theta_values(self, time_points: np.ndarray) -> np.ndarray:
         """
-        Вычисляет значения theta для массива временных точек.
+        Вычисляет значения theta для массива временных точек
 
-        Параметры
+        Parameters
         ----------
         time_points : np.ndarray
             Массив временных точек в годах
 
-        Возвращает
+        Returns
         -------
         np.ndarray
             Массив значений theta для каждого момента времени
         """
         theta_func = self.get_theta_func()
         return np.array([theta_func(t) for t in time_points])
+
+    @classmethod
+    def from_constant(cls, theta_value):
+        """
+        Создание фабрики с постоянной theta
+
+        Parameters
+        ----------
+        theta_value : float
+            Постоянное значение theta
+
+        Returns
+        -------
+        ThetaFactory
+            Фабрика с постоянной функцией theta
+        """
+        params = {"type": "constant", "value": theta_value}
+        return cls(params)
+
+    @classmethod
+    def from_g_curve(cls, g_curve_data, method="spline"):
+        """
+        Создание фабрики на основе G-кривой
+
+        Parameters
+        ----------
+        g_curve_data : pd.DataFrame
+            DataFrame с колонками ['Date', 'Rate'] - данные G-кривой
+        method : str
+            Метод интерполяции: 'spline' или 'piecewise'
+
+        Returns
+        -------
+        ThetaFactory
+            Фабрика с функцией theta на основе G-кривой
+        """
+        # Извлекаем даты и ставки из DataFrame
+        dates = g_curve_data["Date"]
+        rates = g_curve_data["Rate"].values
+
+        # Вычисляем время в годах от начальной даты
+        start_date = dates.min()
+        times = (dates - start_date).dt.days / 365.0
+
+        if method == "spline":
+            # Кубическая сплайн-интерполяция
+            spline_func = CubicSpline(times, rates)
+            theta_kwargs = {
+                "spline_function": spline_func,
+                "times": times.values,
+                "rates": rates,
+                "start_date": start_date,
+            }
+        else:
+            # Кусочно-линейная интерполяция
+            theta_kwargs = {"times": times.values, "rates": rates, "start_date": start_date}
+
+        params = {"type": "g_curve", "value": np.mean(rates)}
+        return cls(params, theta_kwargs)
