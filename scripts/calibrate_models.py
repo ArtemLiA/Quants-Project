@@ -44,20 +44,28 @@ def calibrate_models(rates_data, mode="auto", g_curve_data=None):
 
     # Калибровка модели с theta на основе G-кривой
     if g_curve_data is not None:
-        print("2. Модель с theta на основе G-кривой...")
-        theta_result = calibrate_theta_from_g_curve(g_curve_data)
+        for method in ["spline", "piecewise"]:
+            print(f"2. Модель с theta на основе G-кривой ({method})...")
 
-        models["g_curve"] = {
-            "alpha": alpha,
-            "sigma": sigma,
-            "theta_function": theta_result["theta_function"],
-            "logl": models["constant"]["logl"],
-            "method": theta_result["method"],
-            "times": theta_result["times"],
-            "rates": theta_result["rates"],
-        }
-        print(f"   На основе G-кривой, метод: {theta_result['method']}")
-        print(f"   Количество точек: {len(g_curve_data)}")
+            # Создаем theta функцию
+            theta_result = calibrate_theta_from_g_curve(g_curve_data, method=method)
+            theta_func = theta_result["theta_function"]
+
+            # Калибруем alpha и sigma специально для этой theta функции
+            result_g = calibrate_cir(rates_data, mode=mode, theta_func=theta_func)
+            alpha_g, sigma_g = result_g.x
+
+            models[f"g_curve_{method}"] = {
+                "alpha": alpha_g,
+                "sigma": sigma_g,
+                "theta_function": theta_func,
+                "logl": -result_g.fun,
+                "method": theta_result["method"],
+                "times": theta_result["times"],
+                "rates": theta_result["rates"],
+            }
+            print(f"   α={alpha_g:.4f}, σ={sigma_g:.4f}")
+            check_feller_condition(alpha_g, sigma_g, theta_func)
 
     return models
 

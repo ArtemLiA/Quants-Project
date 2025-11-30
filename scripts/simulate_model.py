@@ -22,7 +22,7 @@ def create_model(params, model_type):
     model : CIRModel или FXLogModel
         Созданная модель
     """
-    if model_type in ["constant", "g_curve"]:
+    if model_type in ["constant", "g_curve_spline", "g_curve_piecewise"]:
         # Создание CIR модели для ставок
         if model_type == "constant":
             theta_func = ThetaFactory.from_constant(params["theta"]).get_theta_func()

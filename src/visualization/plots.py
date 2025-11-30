@@ -170,45 +170,6 @@ def plot_simulation(
     plt.show()
 
 
-def plot_fx_simulation(dates, trajectories, title="Симуляция курса RUB/USD"):
-    """
-    Построение графика симуляции курса RUB/USD
-    """
-    plt.figure(figsize=(12, 8))
-
-    # Верхний график: траектории
-    plt.subplot(2, 1, 1)
-    for i in range(min(20, trajectories.shape[1])):
-        plt.plot(dates, trajectories.iloc[:, i], alpha=0.3, linewidth=0.8, color="blue")
-
-    # Средняя траектория
-    mean_traj = trajectories.mean(axis=1)
-    plt.plot(dates, mean_traj, "r-", linewidth=2, label="Средняя траектория")
-
-    plt.title(f"{title} - Траектории")
-    plt.ylabel("Курс RUB/USD")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-
-    # Нижний график: статистики
-    plt.subplot(2, 1, 2)
-    std_traj = trajectories.std(axis=1)
-
-    plt.plot(dates, mean_traj, "r-", linewidth=2, label="Средняя траектория")
-    plt.fill_between(
-        dates, mean_traj - std_traj, mean_traj + std_traj, alpha=0.3, color="red", label="±1σ"
-    )
-
-    plt.title(f"{title} - Статистики")
-    plt.xlabel("Дата")
-    plt.ylabel("Курс RUB/USD")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.show()
-
-
 def plot_fx_analysis(fx_hist, log_returns):
     """
     Построение графиков анализа курса RUB/USD

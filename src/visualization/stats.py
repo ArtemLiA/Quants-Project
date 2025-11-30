@@ -99,7 +99,7 @@ def print_best_params(models, best_type):
 
     if best_type == "constant":
         print(f"• Theta (θ): {params['theta']:.4f} ({params['theta'] * 100:.2f}%)")
-    elif best_type == "g_curve":
+    elif "g_curve" in best_type:
         print("• Theta(t): на основе G-кривой")
         # Безопасный доступ к данным G-кривой
         if "times" in params and "rates" in params:

@@ -3,30 +3,38 @@ from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 
 
-def cir_log_likelihood(params, rates, dt=1 / 252):
+def cir_log_likelihood(params, rates, dt=1 / 252, theta_func=None):
     """
-    Функция правдоподобия для CIR модели с постоянной theta
+    Функция правдоподобия для CIR модели (поддерживает постоянную и изменяющуюся theta)
 
     Parameters
     ----------
     params : array-like
-        Параметры модели [alpha, sigma, theta]
+        Параметры модели [alpha, sigma] или [alpha, sigma, theta]
     rates : array-like
         Исторические данные ставок
     dt : float
         Временной шаг в годах (по умолчанию 1/252 для торговых дней)
+    theta_func : callable, optional
+        Функция theta(t). Если None, используется постоянная theta из params
 
     Returns
     -------
     float
         Отрицательное логарифмическое правдоподобие (для минимизации)
     """
-    # Извлекаем параметры модели
-    alpha, sigma, theta = params
+    if theta_func is None:
+        # Постоянная theta: params = [alpha, sigma, theta]
+        alpha, sigma, theta_val = params
+    else:
+        # Изменяющаяся theta: params = [alpha, sigma]
+        alpha, sigma = params
 
-    # Проверка положительности параметров - необходимое условие для CIR модели
-    if alpha <= 0 or sigma <= 0 or theta <= 0:
-        return 1e10  # Большое значение для отклонения невалидных параметров
+    # Проверка положительности параметров
+    if alpha <= 0 or sigma <= 0:
+        return 1e10
+    if theta_func is None and theta_val <= 0:
+        return 1e10
 
     n = len(rates)
     log_likelihood = 0
@@ -35,8 +43,16 @@ def cir_log_likelihood(params, rates, dt=1 / 252):
     for i in range(1, n):
         r_prev, r_curr = rates[i - 1], rates[i]
 
+        # Определяем theta для текущего момента времени
+        if theta_func is not None:
+            # Время в годах от начала наблюдений
+            t = i * dt
+            current_theta = theta_func(t)
+        else:
+            current_theta = theta_val
+
         # Ожидаемое изменение согласно CIR модели: dr = α(θ - r)dt
-        expected_change = alpha * (theta - r_prev) * dt
+        expected_change = alpha * (current_theta - r_prev) * dt
 
         # Фактическое изменение ставки
         actual_change = r_curr - r_prev
@@ -53,9 +69,9 @@ def cir_log_likelihood(params, rates, dt=1 / 252):
     return -log_likelihood  # Возвращаем отрицательное значение для минимизации
 
 
-def calibrate_cir(rates, dt=1 / 252, mode="sofr"):
+def calibrate_cir(rates, dt=1 / 252, mode="sofr", theta_func=None):
     """
-    Калибровка параметров CIR модели с постоянной theta
+    Калибровка параметров CIR модели (поддерживает постоянную и изменяющуюся theta)
 
     Parameters
     ----------
@@ -65,6 +81,8 @@ def calibrate_cir(rates, dt=1 / 252, mode="sofr"):
         Временной шаг в годах
     mode : str
         Режим калибровки: "auto", "sofr" или "rub"
+    theta_func : callable, optional
+        Функция theta(t). Если None - калибруется постоянная theta
 
     Returns
     -------
@@ -81,23 +99,39 @@ def calibrate_cir(rates, dt=1 / 252, mode="sofr"):
         else:
             mode = "sofr"
 
-    # Настройки калибровки для разных типов ставок
-    if mode == "rub":
-        # Рублевые ставки: более высокие значения и волатильность
-        initial_guess = [1.0, std_rate * 0.5, mean_rate]
-        bounds = [(0.001, 10.0), (0.0001, 0.30), (0.0001, 1.0)]
-    else:
-        # SOFR ставки: низкие значения и волатильность
-        initial_guess = [1.0, std_rate * 0.5, mean_rate]
-        bounds = [(0.001, 10.0), (0.0001, 0.5), (0.0001, 1.0)]
+    if theta_func is not None:
+        # Калибровка с изменяющейся theta: оптимизируем только alpha и sigma
+        if mode == "rub":
+            initial_guess = [1.0, std_rate * 0.5]
+            bounds = [(0.001, 10.0), (0.0001, 0.30)]
+        else:
+            initial_guess = [1.0, std_rate * 0.5]
+            bounds = [(0.001, 10.0), (0.0001, 0.5)]
 
-    # Минимизация отрицательного правдоподобия для нахождения оптимальных параметров
-    result = minimize(
-        lambda params: cir_log_likelihood(params, rates, dt),
-        initial_guess,
-        bounds=bounds,
-        method="L-BFGS-B",
-    )
+        # Минимизация с передачей theta_func
+        result = minimize(
+            lambda params: cir_log_likelihood(params, rates, dt, theta_func),
+            initial_guess,
+            bounds=bounds,
+            method="L-BFGS-B",
+        )
+    else:
+        # Калибровка с постоянной theta: оптимизируем alpha, sigma и theta
+        if mode == "rub":
+            initial_guess = [1.0, std_rate * 0.5, mean_rate]
+            bounds = [(0.001, 10.0), (0.0001, 0.30), (0.0001, 1.0)]
+        else:
+            initial_guess = [1.0, std_rate * 0.5, mean_rate]
+            bounds = [(0.001, 10.0), (0.0001, 0.5), (0.0001, 1.0)]
+
+        # Минимизация без theta_func
+        result = minimize(
+            lambda params: cir_log_likelihood(params, rates, dt),
+            initial_guess,
+            bounds=bounds,
+            method="L-BFGS-B",
+        )
+
     return result
 
 
@@ -124,49 +158,52 @@ def calibrate_theta_from_g_curve(g_curve_data, method="spline"):
     # Время в годах от начальной даты
     start_date = g_curve_data["Date"].min()
 
-    # Вычисляем время в годах для каждой даты
-    times = (g_curve_data["Date"] - start_date).dt.days / 365.0
+    # Вычисляем время в годах для каждой даты и преобразуем в numpy array
+    times = ((g_curve_data["Date"] - start_date).dt.days / 365.0).values
     g_rates = g_curve_data["Rate"].values
 
     if method == "spline":
         # Кубическая сплайн-интерполяция для гладкой функции theta(t)
         theta_spline = CubicSpline(times, g_rates)
 
-        def theta_function(t):
+        def spline_theta_function(t):
             # Защита от отрицательных значений ставки
-            return max(theta_spline(t), 1e-6)
+            return max(theta_spline(t), 1e-8)
 
         return {
-            "theta_function": theta_function,
-            "method": "spline",
+            "theta_function": spline_theta_function,
+            "method": method,
             "times": times,
             "rates": g_rates,
+            "start_date": start_date,
         }
 
     elif method == "piecewise":
         # Кусочно-линейная интерполяция между узлами G-кривой
-        def theta_function(t):
+        def piecewise_theta_function(t):
             # Поиск ближайших узлов интерполяции
             idx = np.searchsorted(times, t)
             if idx == 0:
-                return g_rates[0]  # Экстраполяция влево - первое значение
+                return max(g_rates[0], 1e-8)  # Защита от отрицательных значений
             elif idx == len(times):
-                return g_rates[-1]  # Экстраполяция вправо - последнее значение
+                return max(g_rates[-1], 1e-8)  # Защита от отрицательных значений
             else:
                 # Линейная интерполяция между узлами
                 t1, t2 = times[idx - 1], times[idx]
                 r1, r2 = g_rates[idx - 1], g_rates[idx]
-                return r1 + (r2 - r1) * (t - t1) / (t2 - t1)
+                interpolated_value = r1 + (r2 - r1) * (t - t1) / (t2 - t1)
+                return max(interpolated_value, 1e-8)  # Защита от отрицательных значений
 
         return {
-            "theta_function": theta_function,
-            "method": "piecewise",
+            "theta_function": piecewise_theta_function,
+            "method": method,
             "times": times,
             "rates": g_rates,
+            "start_date": start_date,
         }
 
 
-def check_feller_condition(alpha, sigma, theta):
+def check_feller_condition(alpha, sigma, theta, time_points=None):
     """
     Проверка условия Феллера для CIR модели
 
@@ -179,29 +216,42 @@ def check_feller_condition(alpha, sigma, theta):
         Скорость возврата к среднему
     sigma : float
         Волатильность
-    theta : float
-        Долгосрочное среднее
-
-    Returns
-    -------
-    tuple
-        (условие_выполнено, подробное_сообщение, краткое_сообщение)
+    theta : float or callable
+        Долгосрочное среднее (постоянное или функция theta(t))
+    time_points : array-like, optional
+        Временные точки для проверки (если theta - функция)
     """
-    # Вычисление обеих частей неравенства Феллера
-    left_side = 2 * alpha * theta
-    right_side = sigma**2
 
-    feller_condition = left_side > right_side
+    # Если theta - функция, проверяем на всех временных точках
+    if callable(theta):
+        if time_points is None:
+            # По умолчанию проверяем на горизонте 1 года
+            time_points = np.linspace(0, 1, 50)
 
-    # Форматирование подробного сообщения с вычислениями
-    detailed_message = (
-        f"Условие Феллера (2αθ > σ²):\n"
-        f"  2 * α * θ = 2 * {alpha:.6f} * {theta:.6f} = {left_side:.6f}\n"
-        f"  σ² = {sigma:.6f}² = {right_side:.6f}\n"
-        f"  {left_side:.6f} > {right_side:.6f} = {feller_condition}"
-    )
+        conditions = []
+        feller_info = []
+        for t in time_points:
+            theta_val = theta(t)
+            left_side = 2 * alpha * theta_val
+            right_side = sigma**2
+            condition_met = left_side > right_side
+            conditions.append(condition_met)
+            feller_info.append((t, theta_val, left_side, right_side, condition_met))
 
-    short_message = f"Условие Феллера: {'ВЫПОЛНЕНО' if feller_condition else 'НЕ ВЫПОЛНЕНО'}"
-    print(short_message)
+        feller_condition = sum(conditions)
 
-    return feller_condition, detailed_message, short_message
+        if feller_condition:
+            print(f"Условие Феллера: НАРУШЕНО В {sum(conditions)} ТОЧКАХ")
+        else:
+            print("Условие Феллера: ВЫПОЛНЕНО ДЛЯ ВСЕХ t")
+
+    else:
+        # Постоянная theta
+        left_side = 2 * alpha * theta
+        right_side = sigma**2
+        feller_condition = left_side > right_side
+
+        if feller_condition:
+            print(f"Условие Феллера: ВЫПОЛНЕНО (2αθ = {left_side:.6f} > σ² = {right_side:.6f})")
+        else:
+            print(f"Условие Феллера: НЕ ВЫПОЛНЕНО (2αθ = {left_side:.6f} ≤ σ² = {right_side:.6f})")
