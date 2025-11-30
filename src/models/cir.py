@@ -49,7 +49,6 @@ class CIRModel:
 
         # Вычисляем theta для каждого момента времени
         theta_values = np.array([self.theta_func(t) for t in time_years])
-        print(theta_values)
 
         # Случайные колебания
         r = np.zeros(shape=(n_timestamps, n_trajectories))
