@@ -51,9 +51,6 @@ class FXLogModel:
         timestamps = pd.date_range(start=start_date, end=end_date, freq="B")
         n_timestamps = timestamps.size
 
-        assert rd.shape == (n_timestamps, n_trajectories)
-        assert rf.shape == (n_timestamps, n_trajectories)
-
         if dW is not None:
             assert dW.shape == (n_timestamps, n_trajectories)
 
