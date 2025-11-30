@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def generate_multivariate_normal(mean, cov, size):
@@ -9,13 +10,8 @@ def generate_multivariate_normal(mean, cov, size):
 
 
 def get_cir_residuals(
-    data: np.ndarray,
-    theta: np.ndarray | float,
-    alpha: float,
-    dt: float,
-    normalized: bool = True
+    data: np.ndarray, theta: np.ndarray | float, alpha: float, dt: float, normalized: bool = True
 ):
-    """"""
     rt = data[1:]
     rs = data[:-1]
 
@@ -25,7 +21,7 @@ def get_cir_residuals(
 
     if isinstance(theta, np.ndarray):
         theta = theta[:-1]
-    
+
     z = (theta - rs) * dt / np.sqrt(rs)
     residuals = y - alpha * z
 
@@ -40,7 +36,7 @@ def get_logfx_residuals(
     data_rf: np.ndarray,
     sigma: float,
     dt: float,
-    normalized: bool = True
+    normalized: bool = True,
 ):
     logfx_t = np.log(data_fx[1:])
     logfx_s = np.log(data_fx[:-1])
@@ -55,3 +51,15 @@ def get_logfx_residuals(
     if normalized:
         return residuals / np.std(residuals)
     return residuals
+
+
+def get_theta_arr(params: dict, start_date: str, end_date: str, dt: float):
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date)
+    timestamps = pd.date_range(start_ts, end_ts, freq="B")
+
+    theta_func = params["theta_func"]
+
+    theta_arr = [theta_func((t - start_ts).days * dt) for t in timestamps]
+
+    return np.array(theta_arr)
