@@ -29,7 +29,6 @@ class CIRModel:
         self,
         start_date: str,
         end_date: str,
-        freq: str,
         n_trajectories: int,
         r0: float,
         dt: float = 1 / 252,
@@ -43,7 +42,7 @@ class CIRModel:
         np.random.seed(42)  # Для воспроизводимости результатов
 
         # Создаем временные метки
-        timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
+        timestamps = pd.date_range(start=start_date, end=end_date, freq="B")
         n_timestamps = timestamps.size
 
         if dW is not None:

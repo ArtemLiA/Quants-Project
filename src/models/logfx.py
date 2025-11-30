@@ -19,7 +19,6 @@ class FXLogModel:
         self,
         start_date: str,
         end_date: str,
-        freq: str,
         n_trajectories: int,
         rf: np.ndarray,
         rd: np.ndarray,
@@ -49,7 +48,7 @@ class FXLogModel:
         np.random.seed(seed)  # Для воспроизводимости результатов
 
         # Создаем временные метки
-        timestamps = pd.date_range(start=start_date, end=end_date, freq=freq)
+        timestamps = pd.date_range(start=start_date, end=end_date, freq="B")
         n_timestamps = timestamps.size
 
         assert rd.shape == (n_timestamps, n_trajectories)
