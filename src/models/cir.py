@@ -34,12 +34,13 @@ class CIRModel:
         dt: float = 1 / 252,
         dW: Optional[np.ndarray] = None,
         return_df: bool = True,
+        seed: Optional[int] = None
     ):
         """
         Произвести симуляции траекторий на основе CIR-модели при помощи
         разностной схемы Эйлера-Мураяны с зависящим от времени theta
         """
-        np.random.seed(42)  # Для воспроизводимости результатов
+        np.random.seed(seed)
 
         # Создаем временные метки
         timestamps = pd.date_range(start=start_date, end=end_date, freq="B")

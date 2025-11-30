@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -14,6 +16,7 @@ class RangeAccrualPricingModel:
         foreign_rate_model: CIRModel,
         fx_model: FXLogModel,
         cov_matrix: np.ndarray,
+        seed: Optional[int] = None
     ):
         self.domestic_rate_model = domestic_rate_model
         self.foreign_rate_model = foreign_rate_model
